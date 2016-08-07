@@ -13,3 +13,9 @@ class File:
         except:
             print("[Error] Can't open the binary or binary not found")
             return None
+
+    def getFileName(self):
+        return self.__fileName
+
+    def getFilePath(self):
+        return self.__filePath

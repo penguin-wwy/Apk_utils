@@ -15,6 +15,7 @@ import os
 import re
 import codecs
 import sqlite3
+import zipfile
 from apk_utils.file import *
 
 class Core(cmd.Cmd):
@@ -22,12 +23,18 @@ class Core(cmd.Cmd):
         cmd.Cmd.__init__(self)
         self.__isConsole = res["console"]
         self.__filePath  = res["filePath"]
+        self.__fileInfo  = None
+        self.__outDirPath= res["outDir"]
         self.prompt = 'Apk_utils—> '
+        self.__parse()
+
+    def __parse(self):
+        if self.__filePath:
+            self.__fileInfo = File(self.__filePath)
+            self.__outDirPath = self.__fileInfo.getFilePath().replace(self.__fileInfo.getFileName(), self.__outDirPath)
 
     def analyze(self):
         if self.__isConsole:
-            if self.__filePath:
-                fileInfo = File(self.__filePath)
             self.cmdloop()
 
     def do_unzip(self, s, silent=False):
@@ -36,3 +43,5 @@ class Core(cmd.Cmd):
     def do_apktool(self, s, silent=False):
         pass
 
+    def do_dex(self, s, silent=False):
+        pass
