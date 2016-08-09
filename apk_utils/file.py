@@ -1,3 +1,4 @@
+import struct
 from binascii import unhexlify
 
 class File:
@@ -19,3 +20,20 @@ class File:
 
     def getFilePath(self):
         return self.__filePath
+
+class AroidManifest:
+    def __init__(self, fileInfo):
+        self.__fileInfo = fileInfo
+
+    def analyze(self):
+        outFile = self.__fileInfo.__filePath + "out.xml"
+        head = self.readHead()
+        print("Magic num: " + head[0])
+        print("File Size: " + struct.unpack('L', bytes(head[1]))[0])
+
+
+    def readHead(self):
+        return [self.__fileInfo.__rawBinary[:4], self.__fileInfo.__rawBinary[4:8]]
+
+    def readStringChunk(self):
+        pass

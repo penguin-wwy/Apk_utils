@@ -1,15 +1,3 @@
-## -*- coding: utf-8 -*-
-##
-##  Jonathan Salwan - 2014-05-12 - ROPgadget tool
-## 
-##  http://twitter.com/JonathanSalwan
-##  http://shell-storm.org/project/ROPgadget/
-## 
-##  This program is free software: you can redistribute it and/or modify
-##  it under the terms of the GNU General Public License as published by
-##  the Free Software  Foundation, either  version 3 of  the License, or
-##  (at your option) any later version.
-
 import argparse
 import sys
 
@@ -36,6 +24,7 @@ class Args:
 
         parser.add_argument("-n", "--filename",    type=str, metavar="<filename>",     help="apk file's full path")
         parser.add_argument("-c", "--console",     action="store_true",                help="Terminal")
+        parser.add_argument("-a", "--androidmanifest", action="store_true",           help="AndroidManifest")
         parser.add_argument("-o", "--out",          type=str, metavar="<out dir>",      help="output dir-name")
 
         self.__args = parser.parse_args(arguments)
@@ -55,6 +44,11 @@ class Args:
             self.result["outDir"] = self.__args.out
         else:
             self.result["outDir"] = "tmp_file"
+
+        if self.__args.androidmanifest:
+            self.result["androidmanifest"] = True
+        else:
+            self.result["androidmanifest"] = False
 
     def getResult(self):
         return self.result
