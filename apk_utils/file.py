@@ -8,6 +8,8 @@ def printHex(arr):
     return res
 
 def toLong(arr):
+    if arr == b'\xff\xff\xff\xff':
+        return -1
     return struct.unpack('L', bytes(arr))[0]
 
 class File:
@@ -37,6 +39,7 @@ class AroidManifest:
     def __init__(self, fileInfo):
         self.__fileInfo = fileInfo
         self.strTable = []
+        self.namespaceMap = {}
 
     def analyze(self):
         outFile = self.__fileInfo.getFilePath().replace("AroidManifest", "out.xml")
@@ -47,7 +50,8 @@ class AroidManifest:
         endOfStr = self.readStringChunk()
         endOfR   = self.readResourceIdChunk(endOfStr)
         endOfStartN = self.readStartNamespaceChunk(endOfR)
-        self.readStratTagChunk(endOfStartN)
+        endOfStartTag = self.readStratTagChunk(endOfStartN)
+        self.readEndTagChunk(endOfStartTag)
 
 
 
@@ -121,6 +125,7 @@ class AroidManifest:
             print("Prefix Str: " + self.strTable[prefix])
             print("Uri: " + str(Uri))
             print("Uri Str: " + self.strTable[Uri])
+            #self.namespaceMap.updata({self.strTable[prefix], self.strTable[Uri]})
 
         return endOfR + chunkSize
 
@@ -129,18 +134,97 @@ class AroidManifest:
         chunkSize = toLong(chunkSize)
         rawBinary = self.__fileInfo.getRawBinary()[endOfStartN:endOfStartN+chunkSize]
 
-        print("Tag Chunk Type: " + printHex(rawBinary[0:4]))
-        print("Tag Chunk Size: " + str(chunkSize))
+        print("Start Tag Chunk Type: " + printHex(rawBinary[0:4]))
+        print("Start Tag Chunk Size: " + str(chunkSize))
 
-        count = (chunkSize - 8) // 32
-        for i in range(0, 32):
-            table = rawBinary[8+i*32:40+i*32]
+        table = rawBinary[8:]
+        while table != b'':
             lineNum = table[0:4]
-            namespaceUri = table[8:12]
-            name = table[12:16]
-            flags= table[16:20]
-            AttributeCount = table[20:24]
-            ClassAtrribute = table[24:28]
-            Atrributes = table[28:32]
+            print("line number: " + str(toLong(lineNum)))
 
-            
+            prefix = table[4:8]
+            prefixIndex = toLong(prefix)
+            if prefixIndex == -1:
+                print("prefix null")
+            else:
+                print("prefix: " + str(prefixIndex))
+                print("prefix str: " + self.strTable[prefixIndex])
+
+            namespaceUri = table[8:12]
+            uriIndex = toLong(namespaceUri)
+            if uriIndex == -1:
+                print("Uri null")
+            else:
+                print("uri: " + str(uriIndex))
+                print("uri str: " + self.strTable[uriIndex])
+
+            name = table[12:16]
+            nameIndex = toLong(name)
+            if nameIndex == -1:
+                print("tag name null")
+            else:
+                print("tag name index: " + str(nameIndex))
+                print("tag name str: " + self.strTable[nameIndex])
+
+            flags= table[16:20]
+
+            AttributeCount = table[20:24]
+            attrCount = toLong(AttributeCount)
+            print("attr count" + str(attrCount))
+
+            ClassAtrribute = table[24:28]
+
+            Atrributes = []
+            for i in range(0, attrCount):
+                entry = {}
+                for j in range(5):
+                    value = toLong(table[28+i*20+j*4:32+i*20+j*4])
+                    if j == 0:
+                        entry["nameSpaceUri"] = value
+                        if value == -1:
+                            print("nameSpaceUri null")
+                        else:
+                            print("nameSpaceUri: " + str(value))
+                            print("nameSpaceUri str: " + self.strTable[value])
+                    elif j == 1:
+                        entry["name"] = value
+                        if value == -1:
+                            print("name null")
+                        else:
+                            print("name: " + str(value))
+                            print("name: " + self.strTable[value])
+                    elif j == 2:
+                        entry["valueString"] = value
+                        if value == -1:
+                            print("valueString null")
+                        else:
+                            print("valueString: " + str(value))
+                            print("valueString str: " + self.strTable[value])
+                    elif j == 3:
+                        entry["type"] = (value >> 24)
+                        if value == -1:
+                            print("type null")
+                        else:
+                            print("type: " + str(value>>24))
+                    elif j == 4:
+                        entry["data"] = value
+                        if value == -1:
+                            print("data null")
+                        else:
+                            print("data: " + str(value))
+                Atrributes.append(entry)
+
+            splitSize = 28
+            splitSize += attrCount * 5 * 4
+            table = table[splitSize:]
+
+        return endOfStartN + chunkSize
+
+    def readEndTagChunk(self, endOfStartTag):
+        chunkSize = self.__fileInfo.getRawBinary()[endOfStartTag+4:endOfStartTag+8]
+        chunkSize = toLong(chunkSize)
+        rawBinary = self.__fileInfo.getRawBinary()[endOfStartTag:endOfStartTag+chunkSize]
+
+        print("End Tag Chunk Type: " + printHex(rawBinary[0:4]))
+        print("End Tag Chunk Size: " + str(chunkSize))
+
