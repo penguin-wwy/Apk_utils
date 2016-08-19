@@ -43,25 +43,50 @@ class AroidManifest:
 
     def analyze(self):
         outFile = self.__fileInfo.getFilePath().replace("AroidManifest", "out.xml")
-        head = self.readHead()
-        print("Magic num: " + printHex(head[0]))
-        print("File Size: " + str(toLong(head[1])))
 
-        endOfStr = self.readStringChunk()
-        endOfR   = self.readResourceIdChunk(endOfStr)
-        endOfStartN = self.readStartNamespaceChunk(endOfR)
-        endOfStartTag = self.readStratTagChunk(endOfStartN)
-        self.readEndTagChunk(endOfStartTag)
 
+        rawChunk = self.__fileInfo.getRawBinary()
+        while 1:
+            if not rawChunk:
+                break
+            start2End = toLong(rawChunk[4:8])
+            headTag = rawChunk[0:4]
+            if toLong(headTag) == 0x0080003:
+                head = self.readHead()
+                print("Magic num: " + printHex(head[0]))
+                print("File Size: " + str(toLong(head[1])))
+                rawChunk = rawChunk[8:]
+            elif toLong(headTag) == 0x001c0001:
+                self.readStringChunk(rawChunk)
+                rawChunk = rawChunk[start2End:]
+            elif toLong(headTag) == 0x00080180:
+                self.readResourceIdChunk(rawChunk)
+                rawChunk = rawChunk[start2End:]
+            elif toLong(headTag) == 0x00100100:
+                self.readStartNamespaceChunk(rawChunk)
+                rawChunk = rawChunk[start2End:]
+            elif toLong(headTag) == 0x00100102:
+                self.readStratTagChunk(rawChunk)
+                rawChunk = rawChunk[start2End:]
+            elif toLong(headTag) == 0x00100103:
+                self.readEndTagChunk(rawChunk)
+                rawChunk = rawChunk[start2End:]
+            elif toLong(headTag) == 0x00100101:
+                self.readEndNamespaceChunk(rawChunk)
+                rawChunk = rawChunk[start2End:]
+            else:
+                print("Unkonw Chunk!")
+                print(printHex(rawChunk[:4]))
+                print("Left %d bytes." % len(rawChunk))
+                break
 
 
     def readHead(self):
         return [self.__fileInfo.getRawBinary()[:4], self.__fileInfo.getRawBinary()[4:8]]
 
-    def readStringChunk(self):
-        chunkSize = self.__fileInfo.getRawBinary()[12:16]
+    def readStringChunk(self, rawBinary):
+        chunkSize = rawBinary[4:8]
         chunkSize = toLong(chunkSize)
-        rawBinary = self.__fileInfo.getRawBinary()[8:chunkSize+8]
         strCount = toLong(rawBinary[8:12])
         offset = toLong(rawBinary[20:24]) + 8
         offOfEachStr = []
@@ -86,12 +111,10 @@ class AroidManifest:
             print("Str: " + string)
             self.strTable.append(string)
 
-        return chunkSize+8
 
-    def readResourceIdChunk(self, endOfStr):
-        chunkSize = self.__fileInfo.getRawBinary()[endOfStr+4:endOfStr+8]
+    def readResourceIdChunk(self, rawBinary):
+        chunkSize = rawBinary[4:8]
         chunkSize = toLong(chunkSize)
-        rawBinary = self.__fileInfo.getRawBinary()[endOfStr:endOfStr+chunkSize]
 
         print("ResourceId Chunk Type: " + printHex(rawBinary[0:4]))
         print("ResourceId Chunk Size: " + str(chunkSize))
@@ -104,15 +127,13 @@ class AroidManifest:
                 strHex = '0x' + (10-len(strHex)) * '0' + strHex[2:]
                 print("id: " + str(id) + " hex: " + strHex)
 
-        return endOfStr + chunkSize
 
-    def readStartNamespaceChunk(self, endOfR):
-        chunkSize = self.__fileInfo.getRawBinary()[endOfR+4:endOfR+8]
+    def readStartNamespaceChunk(self, rawBinary):
+        chunkSize = rawBinary[4:8]
         chunkSize = toLong(chunkSize)
-        rawBinary = self.__fileInfo.getRawBinary()[endOfR:endOfR+chunkSize]
 
-        print("Namespace Chunk Type: " + printHex(rawBinary[0:4]))
-        print("Namespace Chunk Size: " + str(chunkSize))
+        print("Start Namespace Chunk Type: " + printHex(rawBinary[0:4]))
+        print("Start Namespace Chunk Size: " + str(chunkSize))
 
         count = (chunkSize - 8) // 16
         for i in range(0, count):
@@ -127,12 +148,47 @@ class AroidManifest:
             print("Uri Str: " + self.strTable[Uri])
             #self.namespaceMap.updata({self.strTable[prefix], self.strTable[Uri]})
 
-        return endOfR + chunkSize
-
-    def readStratTagChunk(self, endOfStartN):
-        chunkSize = self.__fileInfo.getRawBinary()[endOfStartN+4:endOfStartN+8]
+    def readEndNamespaceChunk(self, rawBinary):
+        chunkSize = rawBinary[4:8]
         chunkSize = toLong(chunkSize)
-        rawBinary = self.__fileInfo.getRawBinary()[endOfStartN:endOfStartN+chunkSize]
+
+        print("End Namespace Chunk Type: " + printHex(rawBinary[0:4]))
+        print("End Namespace Chunk Size: " + str(chunkSize))
+
+        lineNum = rawBinary[8:12]
+        print("line number: " + str(toLong(lineNum)))
+
+        prefix = rawBinary[12:16]
+        prefixIndex = toLong(prefix)
+        if prefixIndex == -1:
+            print("prefix null")
+        else:
+            print("prefix: " + str(prefixIndex))
+            print("prefix str: " + self.strTable[prefixIndex])
+
+        namespaceUri = rawBinary[16:20]
+        uriIndex = toLong(namespaceUri)
+        if uriIndex == -1:
+            print("Uri null")
+        else:
+            print("uri: " + str(uriIndex))
+            print("uri str: " + self.strTable[uriIndex])
+
+        name = rawBinary[20:24]
+        nameIndex = toLong(name)
+        if nameIndex == -1:
+            print("tag name null")
+        else:
+            print("tag name index: " + str(nameIndex))
+            print("tag name str: " + self.strTable[nameIndex])
+
+
+
+    def readStratTagChunk(self, rawChunk):
+        chunkSize = rawChunk[4:8]
+        chunkSize = toLong(chunkSize)
+
+        rawBinary = rawChunk[:chunkSize]
 
         print("Start Tag Chunk Type: " + printHex(rawBinary[0:4]))
         print("Start Tag Chunk Size: " + str(chunkSize))
@@ -218,13 +274,37 @@ class AroidManifest:
             splitSize += attrCount * 5 * 4
             table = table[splitSize:]
 
-        return endOfStartN + chunkSize
 
-    def readEndTagChunk(self, endOfStartTag):
-        chunkSize = self.__fileInfo.getRawBinary()[endOfStartTag+4:endOfStartTag+8]
+    def readEndTagChunk(self, rawBinary):
+        chunkSize = rawBinary[4:8]
         chunkSize = toLong(chunkSize)
-        rawBinary = self.__fileInfo.getRawBinary()[endOfStartTag:endOfStartTag+chunkSize]
 
         print("End Tag Chunk Type: " + printHex(rawBinary[0:4]))
         print("End Tag Chunk Size: " + str(chunkSize))
 
+        lineNum = rawBinary[8:12]
+        print("line number: " + str(toLong(lineNum)))
+
+        prefix = rawBinary[12:16]
+        prefixIndex = toLong(prefix)
+        if prefixIndex == -1:
+            print("prefix null")
+        else:
+            print("prefix: " + str(prefixIndex))
+            print("prefix str: " + self.strTable[prefixIndex])
+
+        namespaceUri = rawBinary[16:20]
+        uriIndex = toLong(namespaceUri)
+        if uriIndex == -1:
+            print("Uri null")
+        else:
+            print("uri: " + str(uriIndex))
+            print("uri str: " + self.strTable[uriIndex])
+
+        name = rawBinary[20:24]
+        nameIndex = toLong(name)
+        if nameIndex == -1:
+            print("tag name null")
+        else:
+            print("tag name index: " + str(nameIndex))
+            print("tag name str: " + self.strTable[nameIndex])
