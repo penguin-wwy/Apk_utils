@@ -25,6 +25,7 @@ class Args:
         parser.add_argument("-n", "--filename",    type=str, metavar="<filename>",     help="apk file's full path")
         parser.add_argument("-c", "--console",     action="store_true",                help="Terminal")
         parser.add_argument("-a", "--androidmanifest", action="store_true",           help="AndroidManifest")
+        parser.add_argument("-d", "--dex",          type=str, metavar="dex file",       help="Dex file")
         parser.add_argument("-o", "--out",          type=str, metavar="<out dir>",      help="output dir-name")
 
         self.__args = parser.parse_args(arguments)
@@ -49,6 +50,11 @@ class Args:
             self.result["androidmanifest"] = True
         else:
             self.result["androidmanifest"] = False
+
+        if self.__args.dex:
+            self.result["dex"] = True
+        else:
+            self.result["dex"] = False
 
     def getResult(self):
         return self.result

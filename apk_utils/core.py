@@ -18,6 +18,7 @@ class Core(cmd.Cmd):
         cmd.Cmd.__init__(self)
         self.__isConsole = res["console"]
         self.__androidmanifest = res["androidmanifest"]
+        self.__dex       = res["dex"]
         self.__filePath  = res["filePath"]
         self.__fileInfo  = None
         self.__outDirPath= res["outDir"]
@@ -57,6 +58,26 @@ class Core(cmd.Cmd):
         if self.__isConsole:
             self.cmdloop()
 
+    def do_filename(self, s, silent=False):
+        self.__filePath = s
+        self.__fileInfo = File(self.__filePath)
+        self.__outDirPath = self.__fileInfo.getFilePath().replace(self.__fileInfo.getFileName(), self.__outDirPath)
+
+        if self.__fileInfo.getFileName() == "AndroidManifest.xml":
+            self.__androidmanifest = True
+        elif self.__fileInfo.getFileName().split('.')[-1] == "dex":
+            self.__dex = True
+
+    def do_parse(self, s, silent=False):
+        if not self.__fileInfo:
+            print("No file to parse!")
+
+        if self.__androidmanifest:
+            AroidManifest(self.__fileInfo).analyze()
+        elif self.__dex:
+            self.do_dex()
+
+
     def do_unzip(self, s, silent=False):
         uPath = os.path.join(self.__outDirPath, 'unzip')
         os.mkdir(uPath)
@@ -65,7 +86,7 @@ class Core(cmd.Cmd):
             f.extract(file, uPath)
 
 
-    def do_apktool(self, s, silent=False):
+    def do_apktool(self, s=None, silent=False):
         if self.os == WINDOWS:
             apktool_win(self.__fileInfo.getFilePath(), self.get_curr_path(),
                         os.path.join(self.__outDirPath, 'apktool_out'))
