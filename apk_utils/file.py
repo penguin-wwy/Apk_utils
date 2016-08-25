@@ -35,7 +35,7 @@ class File:
     def getRawBinary(self):
         return self.__rawBinary
 
-class AroidManifest:
+class AndroidManifest:
     def __init__(self, fileInfo):
         self.__fileInfo = fileInfo
         self.strTable = []
@@ -44,17 +44,37 @@ class AroidManifest:
     def analyze(self):
         outFile = self.__fileInfo.getFilePath().replace("AroidManifest", "out.xml")
 
-
         rawChunk = self.__fileInfo.getRawBinary()
+
+        switcher = {
+            0x001c0001: self.readStringChunk,
+            0x00080180: self.readResourceIdChunk,
+            0x00100100: self.readStartNamespaceChunk,
+            0x00100101: self.readEndNamespaceChunk,
+            0x00100102: self.readStratTagChunk,
+            0x00100103: self.readEndTagChunk,
+            0x00100104: self.readTextChunk
+        }
+
+        self.readHead(rawChunk)
+        rawChunk = rawChunk[8:]
+
+        while 1:
+            if not rawChunk:
+                break
+            start2End = toLong(rawChunk[4:8])
+            headTag = rawChunk[0:4]
+            switcher.get(toLong(headTag), self.readBreak)(rawChunk)
+            rawChunk = rawChunk[start2End:]
+
+        """
         while 1:
             if not rawChunk:
                 break
             start2End = toLong(rawChunk[4:8])
             headTag = rawChunk[0:4]
             if toLong(headTag) == 0x0080003:
-                head = self.readHead()
-                print("Magic num: " + printHex(head[0]))
-                print("File Size: " + str(toLong(head[1])))
+                self.readHead(rawChunk)
                 rawChunk = rawChunk[8:]
             elif toLong(headTag) == 0x001c0001:
                 self.readStringChunk(rawChunk)
@@ -65,24 +85,30 @@ class AroidManifest:
             elif toLong(headTag) == 0x00100100:
                 self.readStartNamespaceChunk(rawChunk)
                 rawChunk = rawChunk[start2End:]
+            elif toLong(headTag) == 0x00100101:
+                self.readEndNamespaceChunk(rawChunk)
+                rawChunk = rawChunk[start2End:]
             elif toLong(headTag) == 0x00100102:
                 self.readStratTagChunk(rawChunk)
                 rawChunk = rawChunk[start2End:]
             elif toLong(headTag) == 0x00100103:
                 self.readEndTagChunk(rawChunk)
                 rawChunk = rawChunk[start2End:]
-            elif toLong(headTag) == 0x00100101:
-                self.readEndNamespaceChunk(rawChunk)
+            elif toLong(headTag) == 0x00100104:
+                self.readTextChunk(rawChunk)
                 rawChunk = rawChunk[start2End:]
             else:
                 print("Unkonw Chunk!")
                 print(printHex(rawChunk[:4]))
                 print("Left %d bytes." % len(rawChunk))
                 break
+        """
 
 
-    def readHead(self):
-        return [self.__fileInfo.getRawBinary()[:4], self.__fileInfo.getRawBinary()[4:8]]
+    def readHead(self, rawBinary):
+        head = [rawBinary[:4], rawBinary[4:8]]
+        print("Magic num: " + printHex(head[0]))
+        print("File Size: " + str(toLong(head[1])))
 
     def readStringChunk(self, rawBinary):
         chunkSize = rawBinary[4:8]
@@ -146,7 +172,10 @@ class AroidManifest:
             print("Prefix Str: " + self.strTable[prefix])
             print("Uri: " + str(Uri))
             print("Uri Str: " + self.strTable[Uri])
-            #self.namespaceMap.updata({self.strTable[prefix], self.strTable[Uri]})
+            if not self.strTable[prefix] in self.namespaceMap:
+                self.namespaceMap[self.strTable[prefix]] = self.strTable[Uri]
+            if not self.strTable[Uri] in self.namespaceMap:
+                self.namespaceMap[self.strTable[Uri]] = self.strTable[prefix]
 
     def readEndNamespaceChunk(self, rawBinary):
         chunkSize = rawBinary[4:8]
@@ -308,3 +337,21 @@ class AroidManifest:
         else:
             print("tag name index: " + str(nameIndex))
             print("tag name str: " + self.strTable[nameIndex])
+
+    def readTextChunk(self, rawBinary):
+        pass
+
+    def readBreak(self, rawBinary):
+        print("Unkonw Chunk!")
+        print(printHex(rawBinary[:4]))
+        print("Left %d bytes." % len(rawBinary))
+
+    class resultText:
+        def __init__(self):
+            pass
+
+        res_text = []
+
+        @staticmethod
+        def append(d):
+            pass
