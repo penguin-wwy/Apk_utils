@@ -67,44 +67,6 @@ class AndroidManifest:
             switcher.get(toLong(headTag), self.readBreak)(rawChunk)
             rawChunk = rawChunk[start2End:]
 
-        """
-        while 1:
-            if not rawChunk:
-                break
-            start2End = toLong(rawChunk[4:8])
-            headTag = rawChunk[0:4]
-            if toLong(headTag) == 0x0080003:
-                self.readHead(rawChunk)
-                rawChunk = rawChunk[8:]
-            elif toLong(headTag) == 0x001c0001:
-                self.readStringChunk(rawChunk)
-                rawChunk = rawChunk[start2End:]
-            elif toLong(headTag) == 0x00080180:
-                self.readResourceIdChunk(rawChunk)
-                rawChunk = rawChunk[start2End:]
-            elif toLong(headTag) == 0x00100100:
-                self.readStartNamespaceChunk(rawChunk)
-                rawChunk = rawChunk[start2End:]
-            elif toLong(headTag) == 0x00100101:
-                self.readEndNamespaceChunk(rawChunk)
-                rawChunk = rawChunk[start2End:]
-            elif toLong(headTag) == 0x00100102:
-                self.readStratTagChunk(rawChunk)
-                rawChunk = rawChunk[start2End:]
-            elif toLong(headTag) == 0x00100103:
-                self.readEndTagChunk(rawChunk)
-                rawChunk = rawChunk[start2End:]
-            elif toLong(headTag) == 0x00100104:
-                self.readTextChunk(rawChunk)
-                rawChunk = rawChunk[start2End:]
-            else:
-                print("Unkonw Chunk!")
-                print(printHex(rawChunk[:4]))
-                print("Left %d bytes." % len(rawChunk))
-                break
-        """
-
-
     def readHead(self, rawBinary):
         head = [rawBinary[:4], rawBinary[4:8]]
         print("Magic num: " + printHex(head[0]))
@@ -222,6 +184,8 @@ class AndroidManifest:
         print("Start Tag Chunk Type: " + printHex(rawBinary[0:4]))
         print("Start Tag Chunk Size: " + str(chunkSize))
 
+        res_s = ''
+
         table = rawBinary[8:]
         while table != b'':
             lineNum = table[0:4]
@@ -250,6 +214,7 @@ class AndroidManifest:
             else:
                 print("tag name index: " + str(nameIndex))
                 print("tag name str: " + self.strTable[nameIndex])
+                res_s = res_s + "<" + self.strTable[nameIndex] + ' '
 
             flags= table[16:20]
 
@@ -271,6 +236,7 @@ class AndroidManifest:
                         else:
                             print("nameSpaceUri: " + str(value))
                             print("nameSpaceUri str: " + self.strTable[value])
+                            res_s = res_s + self.namespaceMap[self.strTable[value]] + ':'
                     elif j == 1:
                         entry["name"] = value
                         if value == -1:
@@ -278,6 +244,7 @@ class AndroidManifest:
                         else:
                             print("name: " + str(value))
                             print("name: " + self.strTable[value])
+                            res_s = res_s + self.strTable[value] + '='
                     elif j == 2:
                         entry["valueString"] = value
                         if value == -1:
@@ -285,6 +252,7 @@ class AndroidManifest:
                         else:
                             print("valueString: " + str(value))
                             print("valueString str: " + self.strTable[value])
+                            res_s = res_s + self.strTable[value] + ' '
                     elif j == 3:
                         entry["type"] = (value >> 24)
                         if value == -1:
@@ -355,3 +323,4 @@ class AndroidManifest:
         @staticmethod
         def append(d):
             pass
+

@@ -9,6 +9,7 @@ import platform
 from sys import exit
 from apk_utils.file import *
 from apk_utils.options import *
+from apk_utils.dexFile import DalvikVMFormat
 
 WINDOWS = 1
 LINUX   = 2
@@ -53,7 +54,8 @@ class Core(cmd.Cmd):
 
     def analyze(self):
         if self.__androidmanifest:
-            AroidManifest(self.__fileInfo).analyze()
+            AndroidManifest(self.__fileInfo).analyze()
+
 
         if self.__isConsole:
             self.cmdloop()
@@ -73,7 +75,7 @@ class Core(cmd.Cmd):
             print("No file to parse!")
 
         if self.__androidmanifest:
-            AroidManifest(self.__fileInfo).analyze()
+            AndroidManifest(self.__fileInfo).analyze()
         elif self.__dex:
             self.do_dex()
 
@@ -93,7 +95,7 @@ class Core(cmd.Cmd):
 
 
     def do_dex(self, s, silent=False):
-        pass
+        DalvikVMFormat(self.__fileInfo)
 
     def get_curr_path(self):
         return self.path.replace('/', '\\')
