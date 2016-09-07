@@ -74,10 +74,10 @@ class ByteCode(object):
     def readat(self, off):
         return self.__buff[off:]
 
-    def set_index(self, index):
+    def set_idx(self, index):
         self.__index = index
 
-    def get_index(self):
+    def get_idx(self):
         return self.__index
 
     def get_buff(self):

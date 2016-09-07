@@ -1,7 +1,10 @@
 
 import apk_utils.options
+import struct
+from struct import unpack, pack, calcsize
+from apk_utils.instruction import *
 
-from struct import unpack, pack
+
 
 TYPE_ITEM = {
     0x0: "TYPE_HEADER_ITEM",
@@ -25,7 +28,7 @@ TYPE_ITEM = {
 }
 
 class HeaderItem(object):
-    def __init__(self, buff, cm):
+    def __init__(self, size, buff, cm):
         self.__CM = cm
 
         self.offset = buff.get_idx()
@@ -164,6 +167,263 @@ class HeaderItem(object):
     def get_off(self):
       return self.offset
 
+class LinearSweepAlgorithm(object):
+    @staticmethod
+    def get_instructions(self, cm, size, insn, idx):
+        max_idx = size * calcsize('=H')
+        if max_idx > len(insn):
+          max_idx = len(insn)
+
+        # Get instructions
+        while idx < max_idx:
+          obj = None
+          classic_instruction = True
+
+          op_value = unpack('=B', insn[idx])[0]
+
+          #print "%x %x" % (op_value, idx)
+
+          #payload instructions or extented/optimized instructions
+          if (op_value == 0x00 or op_value == 0xff) and ((idx + 2) < max_idx):
+            op_value = unpack('=H', insn[idx:idx + 2])[0]
+
+            # payload instructions ?
+            if op_value in DALVIK_OPCODES_PAYLOAD:
+              try:
+                obj = get_instruction_payload(op_value, insn[idx:])
+                classic_instruction = False
+              except struct.error:
+                warning("error while decoding instruction ...")
+
+            elif op_value in DALVIK_OPCODES_EXTENDED_WIDTH:
+              try:
+                obj = get_extented_instruction(cm, op_value, insn[idx:])
+                classic_instruction = False
+              except struct.error, why:
+                warning("error while decoding instruction ..." + why.__str__())
+
+            # optimized instructions ?
+            elif self.odex and (op_value in DALVIK_OPCODES_OPTIMIZED):
+              obj = get_optimized_instruction(cm, op_value, insn[idx:])
+              classic_instruction = False
+
+          # classical instructions
+          if classic_instruction:
+            op_value = unpack('=B', insn[idx])[0]
+            obj = get_instruction(cm, op_value, insn[idx:], self.odex)
+
+          # emit instruction
+          yield obj
+          idx = idx + obj.get_length()
+
+class DCode(object):
+    def __int__(self, class_manager, offset, size, buff):
+        self.CM = class_manager
+        self.insn = buff
+        self.offset = offset
+        self.size = size
+
+        self.notes = {}
+        self.cached_instructions = []
+        self.rcache = 0
+
+        self.idx = 0
+
+    def get_insn(self):
+      """
+          Get the insn buffer
+
+          :rtype: string
+      """
+      return self.insn
+
+    def set_insn(self, insn):
+      """
+          Set a new raw buffer to disassemble
+
+          :param insn: the buffer
+          :type insn: string
+      """
+      self.insn = insn
+      self.size = len(self.insn)
+
+    def set_idx(self, idx):
+        """
+            Set the start address of the buffer
+
+            :param idx: the index
+            :type idx: int
+        """
+        self.idx = idx
+
+    def set_instructions(self, instructions):
+      """
+          Set the instructions
+
+          :param instructions: the list of instructions
+          :type instructions: a list of :class:`Instruction`
+      """
+      self.cached_instructions = instructions
+
+    def get_instructions(self):
+        """
+            Get the instructions
+
+            :rtype: a generator of each :class:`Instruction` (or a cached list of instructions if you have setup instructions)
+        """
+        # it is possible to a cache for instructions (avoid a new disasm)
+        if self.cached_instructions:
+          for i in self.cached_instructions:
+            yield i
+
+        else:
+          if self.rcache >= 5:
+            lsa = LinearSweepAlgorithm()
+            for i in lsa.get_instructions(self.CM, self.size, self.insn, self.idx):
+              self.cached_instructions.append(i)
+
+            for i in self.cached_instructions:
+              yield i
+          else:
+            self.rcache += 1
+            if self.size >= 1000:
+              self.rcache = 5
+
+            lsa = LinearSweepAlgorithm()
+            for i in lsa.get_instructions(self.CM, self.size, self.insn, self.idx):
+                yield i
+
+    def reload(self):
+        pass
+
+    def add_inote(self, msg, idx, off=None):
+      """
+          Add a message to a specific instruction by using (default) the index of the address if specified
+
+          :param msg: the message
+          :type msg: string
+          :param idx: index of the instruction (the position in the list of the instruction)
+          :type idx: int
+          :param off: address of the instruction
+          :type off: int
+      """
+      if off != None:
+        idx = self.off_to_pos(off)
+
+      if idx not in self.notes:
+        self.notes[idx] = []
+
+      self.notes[idx].append(msg)
+
+    def get_instruction(self, idx, off=None):
+        """
+            Get a particular instruction by using (default) the index of the address if specified
+
+            :param idx: index of the instruction (the position in the list of the instruction)
+            :type idx: int
+            :param off: address of the instruction
+            :type off: int
+
+            :rtype: an :class:`Instruction` object
+        """
+        if off != None:
+          idx = self.off_to_pos(off)
+        return [i for i in self.get_instructions()][idx]
+
+    def off_to_pos(self, off):
+        """
+            Get the position of an instruction by using the address
+
+            :param off: address of the instruction
+            :type off: int
+
+            :rtype: int
+        """
+        idx = 0
+        nb = 0
+        for i in self.get_instructions():
+            if idx == off:
+                return nb
+            nb += 1
+            idx += i.get_length()
+        return -1
+
+    def get_ins_off(self, off):
+        """
+            Get a particular instruction by using the address
+
+            :param off: address of the instruction
+            :type off: int
+
+            :rtype: an :class:`Instruction` object
+        """
+        idx = 0
+        for i in self.get_instructions():
+            if idx == off:
+                return i
+            idx += i.get_length()
+        return None
+
+    def show(self):
+        """
+            Display this object
+        """
+        nb = 0
+        idx = 0
+        for i in self.get_instructions():
+            print ("%-8d(%08x)" % (nb, idx), end='')
+            i.show(nb)
+            print
+
+            idx += i.get_length()
+            nb += 1
+
+    def get_raw(self):
+        """
+            Return the raw buffer of this object
+
+            :rtype: string
+        """
+        return ''.join(i.get_raw() for i in self.get_instructions())
+
+    def get_length(self):
+      """
+          Return the length of this object
+
+          :rtype: int
+      """
+      return len(self.get_raw())
+
+class DalvikCode(object):
+    def __init__(self, buff, cm):
+        self.__CM = cm
+        self.offset = buff.get_idx()
+
+        self.int_padding = ""
+        off = buff.get_idx()
+        while off % 4 != 0:
+            self.int_padding += '\00'
+            off += 1
+        buff.set_idx(off)
+
+        self.__off = buff.get_idx()
+
+        self.registers_size = unpack("=H", buff.read(2))[0]
+        self.ins_size = unpack("=H", buff.read(2))[0]
+        self.outs_size = unpack("=H", buff.read(2))[0]
+        self.tries_size = unpack("=H", buff.read(2))[0]
+        self.debug_info_off = unpack("=I", buff.read(4))[0]
+        self.insns_size = unpack("=I", buff.read(4))[0]
+
+        ushort = calcsize('=H')
+
+        self.code = DCode(self.__CM, buff.get_idx(), self.insns_size, buff.read(self.insns_size * ushort))
+
+
+class CodeItem(object):
+    def __init__(self, size, buff, cm):
+
+
 
 class MapItem(object):
     switcher = {
@@ -207,7 +467,7 @@ class MapItem(object):
         pass
 
     def next(self, buff, cm):
-        self.item = MapItem.switcher[self.type][1](buff, cm)
+        self.item = MapItem.switcher[self.type][1](self.size, buff, cm)
 
 class MapList(object):
     def __init__(self, cm, off, buff):
@@ -218,7 +478,7 @@ class MapList(object):
         self.map_item = []
 
         for i in range(0, self.size):
-            idx = buff.get_index()
+            idx = buff.get_idx()
 
             mi = MapItem(buff, self.CM)
             self.map_item.append(mi)
